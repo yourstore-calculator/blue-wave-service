@@ -2313,6 +2313,16 @@ body.theme-dark .quotation-page .editable-textarea{
 .sync-pill.pending{ background:var(--warn-light); color:var(--warn); }
 .sync-pill.error{ background:var(--danger-light); color:var(--danger); }
 .sync-pill.local{ background:var(--surface-2); color:var(--muted); }
+
+.auth-cfg{ border-top:1px solid var(--border); padding-top:10px; }
+.auth-cfg > summary{ cursor:pointer; font-size:.82rem; font-weight:700; color:var(--text-light); }
+.auth-cfg > summary:hover{ color:var(--primary); }
+
+/* عرض للقراءة فقط في وضع الزائر */
+.pl-ro{ display:block; font-size:.82rem; color:var(--text); padding:6px 4px; }
+.pl-ro-desc{ text-align:right; white-space:pre-wrap; }
+.pl-ro-note{ font-size:.84rem; color:var(--text-light); line-height:1.7; padding:4px 0; }
+body.guest-mode .pl-edit-only{ display:none !important; }
 </style>
 </head>
 <body>
@@ -2370,9 +2380,9 @@ body.theme-dark .quotation-page .editable-textarea{
       <div class="topbar">
         <h2 class="section-title" style="margin:0"><i class="fas fa-tags"></i> أسعار المنتجات</h2>
         <div class="actions">
-          <button class="btn btn-outline" onclick="addPriceColumn()"><i class="fas fa-table-columns"></i> إضافة عمود</button>
-          <button class="btn btn-outline" onclick="addPriceSection()"><i class="fas fa-folder-plus"></i> إضافة فئة</button>
-          <button class="btn btn-secondary" onclick="if(confirm('سيتم جلب أي منتجات جديدة من قسم المنتجات مع الإبقاء على تعديلاتك. متابعة؟')){ seedPriceListFromProducts(true); renderPriceList(); }">
+          <button class="btn btn-outline pl-edit-only" onclick="addPriceColumn()"><i class="fas fa-table-columns"></i> إضافة عمود</button>
+          <button class="btn btn-outline pl-edit-only" onclick="addPriceSection()"><i class="fas fa-folder-plus"></i> إضافة فئة</button>
+          <button class="btn btn-secondary pl-edit-only" onclick="if(confirm('سيتم جلب أي منتجات جديدة من قسم المنتجات مع الإبقاء على تعديلاتك. متابعة؟')){ seedPriceListFromProducts(true); renderPriceList(); }">
             <i class="fas fa-rotate"></i> تحديث من المنتجات
           </button>
           <button class="btn btn-primary" onclick="printPriceList()"><i class="fas fa-print"></i> طباعة / PDF</button>
@@ -2390,8 +2400,9 @@ body.theme-dark .quotation-page .editable-textarea{
       <div id="priceListBody"></div>
 
       <div class="pl-note-wrap">
-        <label class="no-print" style="font-size:.78rem; font-weight:700; color:var(--text-light);">ملاحظة أسفل القائمة (قابلة للتعديل)</label>
+        <label id="priceListNoteLabel" class="no-print" style="font-size:.78rem; font-weight:700; color:var(--text-light);">ملاحظة أسفل القائمة (قابلة للتعديل)</label>
         <textarea id="priceListNote" class="no-print" rows="2" oninput="updatePriceNote(this.value)"></textarea>
+        <div id="priceListNoteRo" class="pl-ro pl-ro-note no-print" style="display:none"></div>
         <div class="pl-note-print" id="priceListNotePrint"></div>
       </div>
     </div>
@@ -3751,6 +3762,13 @@ async function renderCatalogAdminFiles() {
   `).join("");
 }
 
+// نفس مبدأ قائمة الأسعار: الحماية بالمنطق لا بإخفاء الأزرار وحده.
+function guardCatalogEdit() {
+  if (typeof isGuest !== "function" || !isGuest()) return true;
+  alert("وضع الزائر: المعاينة والتحميل فقط.\n\nسجّل الدخول لإدارة الكتالوجات.");
+  return false;
+}
+
 function catalogIconFor(f) {
   const t = f.type || "";
   if (t.startsWith("image/")) return "fa-file-image";
@@ -3810,6 +3828,7 @@ function setCatalogCategory(id) {
 }
 
 function addCatalogCategory() {
+  if (!guardCatalogEdit()) return;
   const el = document.getElementById("newCatalogCategory");
   const label = (el.value || "").trim();
   if (!label) { alert("أدخل اسم الفئة"); return; }
@@ -3822,6 +3841,7 @@ function addCatalogCategory() {
 }
 
 async function deleteCatalogCategory() {
+  if (!guardCatalogEdit()) return;
   if (!adminCatalogCategory) return;
   const cat = catalogCategories.find(c => c.id === adminCatalogCategory);
   if (!cat) return;
@@ -3842,6 +3862,7 @@ async function deleteCatalogCategory() {
 }
 
 async function uploadCatalogFiles(input) {
+  if (!guardCatalogEdit()) { input.value = ""; return; }
   if (!adminCatalogCategory) { alert("أضف فئة أولاً ثم ارفع الكتالوج بداخلها."); input.value = ""; return; }
   const files = Array.from(input.files || []);
   if (!files.length) return;
@@ -3920,6 +3941,7 @@ async function downloadCatalog(id) {
 }
 
 async function deleteCatalog(id) {
+  if (!guardCatalogEdit()) return;
   if (!confirm("حذف هذا الكتالوج؟")) return;
   try { await catalogTx("readwrite", st => st.delete(id)); } catch (e) { console.error(e); }
   renderCatalogAdminFiles();
@@ -4108,6 +4130,7 @@ function defaultPriceNote() {
 
 // يبني القائمة من المنتجات الحالية، مع الحفاظ على أي تعديل سابق لنفس المنتج.
 function seedPriceListFromProducts(keepEdits) {
+  if (!guardPriceEdit()) return;
   const prev = keepEdits && priceList ? priceList : null;
   const prevRowByProduct = {};
   if (prev) {
@@ -4186,14 +4209,16 @@ function renderPriceList() {
   }
 
   const cols = priceList.columns || [];
+  const canEdit = canEditPriceList();
 
   host.innerHTML = priceList.sections.map(sec => {
     const showOpen = !!sec.showOpening;
-    const colCount = 4 + (showOpen ? 1 : 0) + cols.length + 1;
+    const colCount = 4 + (showOpen ? 1 : 0) + cols.length + (canEdit ? 1 : 0);
     return `
     <section class="pl-section">
       <div class="pl-section-head">
         <h3 class="pl-title">${escapeAttr(sec.title)}</h3>
+        ${canEdit ? `
         <div class="pl-section-tools no-print">
           <label class="pl-toggle" title="إظهار عمود سعر الفتحة (للنوافذ)">
             <input type="checkbox" ${showOpen ? "checked" : ""} onchange="togglePriceOpening('${sec.id}')"> سعر الفتحة
@@ -4201,7 +4226,7 @@ function renderPriceList() {
           <button class="btn btn-outline" onclick="addPriceRow('${sec.id}')"><i class="fas fa-plus"></i> منتج</button>
           <button class="btn btn-outline" onclick="renamePriceSection('${sec.id}')"><i class="fas fa-pen"></i></button>
           <button class="btn btn-danger" onclick="deletePriceSection('${sec.id}')"><i class="fas fa-trash-alt"></i></button>
-        </div>
+        </div>` : ``}
       </div>
 
       <table class="pl-table">
@@ -4214,9 +4239,9 @@ function renderPriceList() {
             <th class="pl-c-num">سعر المتر</th>
             ${showOpen ? '<th class="pl-c-num">سعر الفتحة</th>' : ''}
             ${cols.map(c => `<th class="pl-c-num">${escapeAttr(c.label)}
-              <button class="pl-colx no-print" title="حذف العمود" onclick="deletePriceColumn('${c.id}')">&times;</button>
+              ${canEdit ? `<button class="pl-colx no-print" title="حذف العمود" onclick="deletePriceColumn('${c.id}')">&times;</button>` : ``}
             </th>`).join("")}
-            <th class="pl-c-act no-print"></th>
+            ${canEdit ? `<th class="pl-c-act no-print"></th>` : ``}
           </tr>
         </thead>
         <tbody>
@@ -4226,23 +4251,27 @@ function renderPriceList() {
                 ${r.image
                   ? `<img class="pl-img" src="${r.image}" alt="">`
                   : `<div class="pl-img pl-img-ph"><i class="fas fa-image"></i></div>`}
+                ${canEdit ? `
                 <div class="pl-img-tools no-print">
                   <label class="pl-mini">تغيير<input type="file" accept="image/*" onchange="changePriceRowImage('${sec.id}','${r.id}', this)"></label>
                   ${r.image ? `<button class="pl-mini pl-mini-x" onclick="clearPriceRowImage('${sec.id}','${r.id}')">حذف</button>` : ""}
-                </div>
+                </div>` : ``}
               </td>
               <td class="pl-c-name">${priceCell(sec.id, r.id, "name", r.name)}<span class="pl-print-only">${escapeAttr(r.name)}</span></td>
               <td class="pl-c-desc">
-                <textarea rows="2" oninput="updatePriceRow('${sec.id}','${r.id}','desc', this.value)">${escapeAttr(r.desc || "")}</textarea>
+                ${canEdit
+                  ? `<textarea rows="2" oninput="updatePriceRow('${sec.id}','${r.id}','desc', this.value)">${escapeAttr(r.desc || "")}</textarea>`
+                  : `<span class="pl-ro pl-ro-desc">${escapeAttr(r.desc || "")}</span>`}
                 <span class="pl-print-only">${escapeAttr(r.desc || "")}</span>
               </td>
               <td class="pl-c-num">${priceCell(sec.id, r.id, "price", r.price)}<span class="pl-print-only">${escapeAttr(r.price)}</span></td>
               <td class="pl-c-num">${priceCell(sec.id, r.id, "pricePerM2", r.pricePerM2)}<span class="pl-print-only">${escapeAttr(r.pricePerM2)}</span></td>
               ${showOpen ? `<td class="pl-c-num">${priceCell(sec.id, r.id, "openingPrice", r.openingPrice)}<span class="pl-print-only">${escapeAttr(r.openingPrice)}</span></td>` : ''}
               ${cols.map(c => `<td class="pl-c-num">${priceCell(sec.id, r.id, "custom:" + c.id, (r.custom || {})[c.id])}<span class="pl-print-only">${escapeAttr((r.custom || {})[c.id] || "")}</span></td>`).join("")}
+              ${canEdit ? `
               <td class="pl-c-act no-print">
                 <button class="btn btn-danger" onclick="deletePriceRow('${sec.id}','${r.id}')"><i class="fas fa-trash-alt"></i></button>
-              </td>
+              </td>` : ``}
             </tr>
           `).join("") : `<tr><td colspan="${colCount}" class="pl-empty">لا توجد منتجات في هذه الفئة.</td></tr>`}
         </tbody>
@@ -4251,7 +4280,18 @@ function renderPriceList() {
   }).join("");
 
   const noteEl = document.getElementById("priceListNote");
-  if (noteEl) noteEl.value = priceList.note || defaultPriceNote();
+  if (noteEl) {
+    noteEl.value = priceList.note || defaultPriceNote();
+    noteEl.readOnly = !canEdit;
+    noteEl.style.display = canEdit ? "" : "none";
+  }
+  const noteLbl = document.getElementById("priceListNoteLabel");
+  if (noteLbl) noteLbl.style.display = canEdit ? "" : "none";
+  const noteRo = document.getElementById("priceListNoteRo");
+  if (noteRo) {
+    noteRo.style.display = canEdit ? "none" : "block";
+    noteRo.textContent = priceList.note || defaultPriceNote();
+  }
   const notePrint = document.getElementById("priceListNotePrint");
   if (notePrint) notePrint.textContent = priceList.note || defaultPriceNote();
 }
@@ -4267,11 +4307,28 @@ function printPriceList() {
 }
 
 // ---------- التحرير ----------
+// التحرير متاح للمستخدم المسجّل فقط — الزائر يشاهد ويطبع ولا يعدّل شيئاً.
+function canEditPriceList() {
+  return typeof isGuest !== "function" || !isGuest();
+}
+
+// حارس يُستدعى في مقدمة كل عملية تعديل — الحماية بالمنطق لا بإخفاء الأزرار فقط،
+// حتى لا يكفي استدعاء الدالة من الـ Console لتجاوز القيد.
+function guardPriceEdit() {
+  if (canEditPriceList()) return true;
+  alert("وضع الزائر: العرض والطباعة فقط.\n\nسجّل الدخول للتعديل على قائمة الأسعار.");
+  return false;
+}
+
 function priceCell(secId, rowId, field, value) {
+  if (!canEditPriceList()) {
+    return `<span class="pl-ro">${escapeAttr(value ?? "")}</span>`;
+  }
   return `<input value="${escapeAttr(value ?? "")}" oninput="updatePriceRow('${secId}','${rowId}','${field}', this.value)">`;
 }
 
 function updatePriceRow(secId, rowId, field, value) {
+  if (!guardPriceEdit()) return;
   const sec = priceList.sections.find(s => s.id === secId);
   const row = sec && sec.rows.find(r => r.id === rowId);
   if (!row) return;
@@ -4285,6 +4342,7 @@ function updatePriceRow(secId, rowId, field, value) {
 }
 
 function addPriceRow(secId) {
+  if (!guardPriceEdit()) return;
   const sec = priceList.sections.find(s => s.id === secId);
   if (!sec) return;
   sec.rows.push({ id: "pr_" + uid(), name: "", image: "", desc: "", price: "", pricePerM2: "", openingPrice: "", custom: {} });
@@ -4293,6 +4351,7 @@ function addPriceRow(secId) {
 }
 
 function deletePriceRow(secId, rowId) {
+  if (!guardPriceEdit()) return;
   const sec = priceList.sections.find(s => s.id === secId);
   if (!sec) return;
   if (!confirm("حذف هذا السطر من قائمة الأسعار؟")) return;
@@ -4302,6 +4361,7 @@ function deletePriceRow(secId, rowId) {
 }
 
 function addPriceSection() {
+  if (!guardPriceEdit()) return;
   const title = prompt("اسم الفئة الرئيسية (مثال: أسعار المطابخ):", "");
   if (title === null) return;
   const t = title.trim();
@@ -4312,6 +4372,7 @@ function addPriceSection() {
 }
 
 function renamePriceSection(secId) {
+  if (!guardPriceEdit()) return;
   const sec = priceList.sections.find(s => s.id === secId);
   if (!sec) return;
   const t = prompt("اسم الفئة:", sec.title);
@@ -4323,6 +4384,7 @@ function renamePriceSection(secId) {
 }
 
 function deletePriceSection(secId) {
+  if (!guardPriceEdit()) return;
   const sec = priceList.sections.find(s => s.id === secId);
   if (!sec) return;
   if (!confirm(`حذف فئة "${sec.title}" وكل أسطرها من قائمة الأسعار؟`)) return;
@@ -4332,6 +4394,7 @@ function deletePriceSection(secId) {
 }
 
 function togglePriceOpening(secId) {
+  if (!guardPriceEdit()) return;
   const sec = priceList.sections.find(s => s.id === secId);
   if (!sec) return;
   sec.showOpening = !sec.showOpening;
@@ -4340,6 +4403,7 @@ function togglePriceOpening(secId) {
 }
 
 function addPriceColumn() {
+  if (!guardPriceEdit()) return;
   const label = prompt("اسم العمود الجديد:", "");
   if (label === null) return;
   const l = label.trim();
@@ -4350,6 +4414,7 @@ function addPriceColumn() {
 }
 
 function deletePriceColumn(colId) {
+  if (!guardPriceEdit()) return;
   const col = priceList.columns.find(c => c.id === colId);
   if (!col) return;
   if (!confirm(`حذف عمود "${col.label}" من كل الفئات؟`)) return;
@@ -4360,12 +4425,14 @@ function deletePriceColumn(colId) {
 }
 
 function updatePriceNote(value) {
+  if (!guardPriceEdit()) return;
   priceList.note = value;
   savePriceList();
 }
 
 // صورة السطر — تُضغط قبل الحفظ كبقية صور النظام
 async function changePriceRowImage(secId, rowId, input) {
+  if (!guardPriceEdit()) return;
   const file = input.files && input.files[0];
   if (!file) return;
   try {
@@ -4379,6 +4446,7 @@ async function changePriceRowImage(secId, rowId, input) {
 }
 
 function clearPriceRowImage(secId, rowId) {
+  if (!guardPriceEdit()) return;
   updatePriceRow(secId, rowId, "image", "");
   renderPriceList();
 }
@@ -9942,6 +10010,22 @@ function cloudSaveConfig(url, key) {
 }
 
 // ---------- ٢) التهيئة ----------
+// يكشف أشيع أخطاء الإدخال قبل محاولة الاتصال، ويعيد رسالة عربية أو null إن كان سليماً
+function cloudValidateConfig(url, key) {
+  const u = (url || "").trim();
+  const k = (key || "").trim();
+  if (!u) return "رابط المشروع فارغ.";
+  if (!k) return "المفتاح فارغ.";
+  if (/supabase\.com\/dashboard/i.test(u))
+    return "هذا رابط لوحة التحكم وليس رابط الـ API.\nخذ Project URL من: Settings ← API (بصيغة https://xxxx.supabase.co).";
+  if (!/^https:\/\//i.test(u)) return "الرابط يجب أن يبدأ بـ https://";
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/i.test(u.replace(/\/+$/, "") + "/"))
+    if (!/^https:\/\/[a-z0-9.-]+\/?$/i.test(u)) return "صيغة الرابط غير صحيحة.";
+  if (k.length < 60) return "المفتاح يبدو ناقصاً (المفتاح الصحيح طويل جداً). انسخه كاملاً من Settings ← API.";
+  if (!/^ey/.test(k)) return "المفتاح لا يبدو صحيحاً — مفتاح anon يبدأ عادةً بـ ey.";
+  return null;
+}
+
 function cloudInit() {
   const cfg = cloudConfig();
   if (!cfg.url || !cfg.key) return false;
@@ -9962,6 +10046,54 @@ function cloudInit() {
 }
 
 function cloudReady() { return !!db && !!cloudUser; }
+
+// يفحص الوصول لـ Supabase ويشخّص السبب بدقة بدل رسالة عامة.
+// يستدعي نقطة REST مباشرة بـ fetch حتى نرى رمز الحالة الحقيقي، لأن مكتبة
+// supabase-js تبتلع التفاصيل وتحاول تحليل JSON فيظهر الخطأ الغامض.
+async function cloudTestConnection() {
+  const cfg = cloudConfig();
+  const bad = cloudValidateConfig(cfg.url, cfg.key);
+  if (bad) { alert("❌ " + bad); return; }
+
+  const base = cfg.url.replace(/\/+$/, "");
+  cloudBusyOn("جارِ اختبار الاتصال...");
+  try {
+    const res = await fetch(`${base}/rest/v1/`, {
+      headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}` }
+    });
+    const text = await res.text();
+
+    if (res.status === 401 || res.status === 403) {
+      alert("❌ الرابط يعمل لكن المفتاح مرفوض.\n\nتأكد أنك نسخت مفتاح anon public كاملاً من Settings ← API.");
+      return;
+    }
+    if (res.status >= 500) {
+      alert(`❌ الخادم رد بخطأ ${res.status}.\n\nغالباً المشروع متوقف — افتح لوحة تحكم Supabase وشغّله (Resume).`);
+      return;
+    }
+    if (!res.ok) {
+      alert(`❌ رد غير متوقع (${res.status}).\n\n${text.slice(0, 200) || "بلا محتوى"}`);
+      return;
+    }
+
+    // الاتصال سليم — نجرّب نقطة المصادقة أيضاً
+    const authRes = await fetch(`${base}/auth/v1/settings`, { headers: { apikey: cfg.key } });
+    if (!authRes.ok) {
+      alert("⚠️ قاعدة البيانات تعمل، لكن خدمة المصادقة لا ترد.\nتحقق من تفعيل Email provider في Authentication ← Providers.");
+      return;
+    }
+    alert("✅ الاتصال سليم.\n\nالرابط والمفتاح صحيحان، وخدمة المصادقة تعمل.\nإن فشل الدخول الآن فالمشكلة في البريد أو كلمة المرور، أو أن الحساب يحتاج تأكيد البريد.");
+  } catch (err) {
+    alert("❌ تعذّر الوصول إلى الرابط إطلاقاً.\n\n" +
+          "الأسباب المحتملة:\n" +
+          "١) المشروع متوقف — شغّله من لوحة تحكم Supabase.\n" +
+          "٢) الرابط خطأ.\n" +
+          "٣) لا يوجد اتصال بالإنترنت.\n\n" +
+          String(err.message || err));
+  } finally {
+    cloudBusyOff();
+  }
+}
 
 // ---------- ٣) مؤشر التحميل ----------
 function cloudBusyOn(message) {
@@ -9988,7 +10120,19 @@ function cloudBusyOff() {
 function cloudErr(err, fallback) {
   console.error(err);
   const m = String(err && (err.message || err.error_description || err) || "");
-  if (/Failed to fetch|NetworkError/i.test(m)) return "لا يوجد اتصال بالإنترنت.";
+  // "Unexpected end of JSON input" = وصل رد بلا محتوى، فلم يستطع تحليله.
+  // هذا لا يعني خطأ في كلمة المرور — بل أن الطلب لم يصل لـ Supabase أو رجع فارغاً.
+  if (/Unexpected end of JSON input|Failed to execute 'json'|Failed to fetch|NetworkError/i.test(m)) {
+    try { cloudHadConnError = true; } catch (e) {}
+  }
+  if (/Unexpected end of JSON input|Failed to execute 'json'/i.test(m)) {
+    return "لم يصل رد صالح من Supabase.\n\nالأسباب الشائعة:\n" +
+           "١) رابط المشروع خطأ — يجب أن يكون بصيغة https://xxxx.supabase.co وليس رابط لوحة التحكم.\n" +
+           "٢) المشروع متوقف — الخطة المجانية توقفه بعد 7 أيام بلا نشاط. شغّله من لوحة تحكم Supabase.\n" +
+           "٣) المفتاح ناقص أو مقصوص عند النسخ.\n\n" +
+           "استخدم زر \"اختبار الاتصال\" في لوحة الأدمن ← السحابة لمعرفة السبب بدقة.";
+  }
+  if (/Failed to fetch|NetworkError/i.test(m)) return "لا يوجد اتصال بالإنترنت، أو المشروع متوقف/الرابط خطأ.";
   if (/Invalid login|invalid_credentials/i.test(m)) return "البريد أو كلمة المرور غير صحيحة.";
   if (/row-level security|violates row-level/i.test(m))
     return "الحماية منعت العملية — تأكد أنك مسجّل الدخول وأن سياسات RLS مطبَّقة.";
@@ -10711,13 +10855,49 @@ async function initAccessMode() {
 }
 
 // ---------- نافذة الدخول / إنشاء حساب ----------
+let cloudHadConnError = false;   // يُرفع عند أي فشل اتصال، فتظهر إعدادات الاتصال
 let authMode = "signin";   // signin | signup
 
 function openAuthModal(mode) {
   authMode = mode || "signin";
   applyAuthMode();
+
+  // إعدادات الاتصال لا تُعرض للزوار العاديين — تظهر فقط عند الحاجة الفعلية:
+  // (أ) لم يُضبط الاتصال بعد، أو (ب) فشلت آخر محاولة اتصال.
+  // بدون هذا الشرط كان أي زائر يرى رابط المشروع والمفتاح في نموذج مفتوح،
+  // وهي فوضى لا داعي لها حتى لو كان المفتاح عاماً بطبيعته.
+  const needsSetup = !cloudConfigured() || cloudHadConnError;
+  const cfgBox = document.getElementById("authCfgBox");
+  if (cfgBox) {
+    cfgBox.style.display = needsSetup ? "block" : "none";
+    if (!needsSetup) cfgBox.removeAttribute("open");
+  }
+  const testBtn = document.getElementById("authTestBtn");
+  if (testBtn) testBtn.style.display = needsSetup ? "inline-flex" : "none";
+
+  if (needsSetup) {
+    const cfg = cloudConfig();
+    const u = document.getElementById("authCfgUrl");
+    const k = document.getElementById("authCfgKey");
+    if (u) u.value = cfg.url || "";
+    if (k) k.value = cfg.key || "";
+  }
+
   const m = document.getElementById("authModal");
   if (m) m.style.display = "flex";
+}
+
+// حفظ بيانات الاتصال من نافذة الدخول — الطريق الوحيد لتصحيحها لو كان
+// المستخدم في وضع الزائر (لوحة الأدمن محجوبة عنه).
+function authSaveCfg() {
+  const url = document.getElementById("authCfgUrl").value.trim();
+  const key = document.getElementById("authCfgKey").value.trim();
+  const bad = cloudValidateConfig(url, key);
+  if (bad) { authMsg(bad, true); return; }
+  cloudSaveConfig(url, key);
+  db = null; cloudUser = null;
+  if (cloudInit()) authMsg("حُفظت بيانات الاتصال — سجّل الدخول الآن.", false);
+  else authMsg("تعذّر الربط — راجع الرابط والمفتاح.", true);
 }
 
 function closeAuthModal() {
@@ -10952,7 +11132,10 @@ function renderCloudPanel() {
         <input id="cloudUrl" value="${escapeAttr(cfg.url)}" placeholder="https://xxxx.supabase.co" style="direction:ltr;text-align:left"></div>
       <div class="field"><label>anon public key</label>
         <input id="cloudKey" value="${escapeAttr(cfg.key)}" placeholder="eyJhbGci..." style="direction:ltr;text-align:left"></div>
-      <div class="field"><button class="btn btn-primary" onclick="cloudUiSaveConfig()"><i class="fas fa-save"></i> حفظ وربط</button></div>
+      <div class="field" style="display:flex;gap:6px;flex-direction:row">
+        <button class="btn btn-primary" onclick="cloudUiSaveConfig()"><i class="fas fa-save"></i> حفظ وربط</button>
+        <button class="btn btn-outline" onclick="cloudTestConnection()"><i class="fas fa-stethoscope"></i> اختبار الاتصال</button>
+      </div>
     </div>
 
     ${!cloudUser ? `
@@ -10993,7 +11176,8 @@ async function cloudUiSaveCurrent() {
 function cloudUiSaveConfig() {
   const url = document.getElementById("cloudUrl").value.trim();
   const key = document.getElementById("cloudKey").value.trim();
-  if (!url || !key) { alert("أدخل الرابط والمفتاح."); return; }
+  const bad = cloudValidateConfig(url, key);
+  if (bad) { alert("❌ " + bad); return; }
   cloudSaveConfig(url, key);
   db = null; cloudUser = null;
   if (cloudInit()) {
@@ -11217,9 +11401,22 @@ showHome();
     <div class="field" style="margin-top:10px"><label>كلمة المرور</label>
       <input id="authPass" type="password" autocomplete="current-password" style="direction:ltr;text-align:left"></div>
     <div id="authMsg" class="formula-status" style="margin-top:8px"></div>
+
+    <details class="auth-cfg" id="authCfgBox" style="margin-top:12px; display:none">
+      <summary><i class="fas fa-gear"></i> إعدادات الاتصال بـ Supabase</summary>
+      <div class="field" style="margin-top:10px"><label>Project URL</label>
+        <input id="authCfgUrl" placeholder="https://xxxx.supabase.co" style="direction:ltr;text-align:left"></div>
+      <div class="field" style="margin-top:8px"><label>anon public key</label>
+        <input id="authCfgKey" placeholder="eyJhbGci..." style="direction:ltr;text-align:left"></div>
+      <button class="btn btn-outline" style="margin-top:10px" onclick="authSaveCfg()">
+        <i class="fas fa-save"></i> حفظ بيانات الاتصال
+      </button>
+      <div class="hint" style="margin-top:6px">من Supabase ← Settings ← API</div>
+    </details>
     <div class="actions" style="margin-top:14px">
       <button class="btn btn-primary" id="authPrimary" onclick="authSubmit()"><i class="fas fa-right-to-bracket"></i> دخول</button>
       <button class="btn btn-outline" onclick="authToggleMode()"><span id="authToggleText">إنشاء حساب جديد</span></button>
+      <button class="btn btn-outline" id="authTestBtn" onclick="cloudTestConnection()" style="display:none"><i class="fas fa-stethoscope"></i> اختبار الاتصال</button>
       <button class="btn btn-secondary" onclick="enterGuestMode()">لاحقاً (وضع الزائر)</button>
     </div>
   </div>

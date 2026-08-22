@@ -3725,7 +3725,7 @@ const CBM_CONVERSION_FACTOR = 0.13;
 // but it stops the password from being trivially visible via "View Source".
 // بصمة الإصدار — اطبع APP_VERSION في Console لمعرفة النسخة المنشورة بدقة.
 // تُحدَّث مع كل تسليم، وتظهر أيضاً في لوحة الأدمن.
-const APP_VERSION = "2026.08.24";
+const APP_VERSION = "2026.08.25";
 const APP_FEATURES = [
   "guest-readonly-pricelist",   // قائمة الأسعار للقراءة فقط للزائر
   "auth-cfg-hidden",            // إعدادات الاتصال مخفية عن الزوار
@@ -13342,6 +13342,105 @@ function setLiveIndicator(on) {
   el.innerHTML = '<span class="live-dot"></span> مباشر';
 }
 
+
+// =====================================================================================
+// تشخيص الحفظ السحابي — يفحص كل حلقة في السلسلة ويحدد المقطوعة بالضبط.
+// السلسلة: المفاتيح ← الاتصال ← تسجيل الدخول ← الجداول ← الكتابة ← القراءة
+// =====================================================================================
+async function diagnoseCloudSave() {
+  const L = [];
+  const ok = (t) => L.push("✅ " + t);
+  const bad = (t) => L.push("❌ " + t);
+  const warn = (t) => L.push("⚠️ " + t);
+  let fatal = null;
+
+  cloudBusyOn("جارِ تشخيص الحفظ السحابي...");
+  try {
+    // ① المفاتيح
+    const cfg = cloudConfig();
+    if (!cfg.url || !cfg.key) {
+      bad("المفاتيح غير مضبوطة — لا يوجد اتصال بالسحابة أصلاً");
+      fatal = "املأ SUPABASE_URL و SUPABASE_ANON_KEY بأعلى ملف HTML،\nأو أدخلهما من نافذة الدخول ← إعدادات الاتصال.";
+      throw new Error("stop");
+    }
+    ok("المفاتيح مضبوطة (" + cfg.url.replace(/^https?:\/\//, "").split(".")[0] + ")");
+
+    // ② عميل Supabase
+    if (!db && !cloudInit()) {
+      bad("تعذّرت تهيئة الاتصال — المفاتيح غير صالحة");
+      fatal = cloudValidateConfig(cfg.url, cfg.key) || "راجع الرابط والمفتاح.";
+      throw new Error("stop");
+    }
+    ok("عميل Supabase جاهز");
+
+    // ③ تسجيل الدخول — أشيع سبب
+    const { data: sess } = await db.auth.getSession();
+    if (!sess || !sess.session) {
+      bad("لست مسجّل الدخول — الحفظ السحابي معطّل تماماً");
+      fatal = "اضغط \"دخول\" أعلى الصفحة وسجّل بحسابك.\n\nبلا تسجيل دخول يعمل التطبيق محلياً فقط.";
+      throw new Error("stop");
+    }
+    ok("مسجّل الدخول: " + sess.session.user.email);
+
+    // ④ الجداول
+    const probe = await db.from("app_state").select("key").limit(1);
+    if (probe.error) {
+      const m = String(probe.error.message || "");
+      if (/does not exist|relation/i.test(m)) {
+        bad("جدول app_state غير موجود");
+        fatal = "شغّل ملف supabase-setup-ALL.sql في Supabase ← SQL Editor.";
+      } else if (/row-level security|permission/i.test(m)) {
+        bad("الحماية تمنع القراءة");
+        fatal = "شغّل ملف supabase-fix-fk.sql في Supabase ← SQL Editor.";
+      } else {
+        bad("خطأ في القراءة: " + m.slice(0, 90));
+        fatal = m;
+      }
+      throw new Error("stop");
+    }
+    ok("جدول app_state موجود ومقروء");
+
+    // ⑤ كتابة فعلية — الاختبار الحاسم
+    const testKey = "__bw_diag_test";
+    const w = await db.from("app_state").upsert(
+      [{ key: testKey, value: { at: Date.now() }, updated_at: new Date().toISOString() }],
+      { onConflict: "key" }
+    );
+    if (w.error) {
+      const m = String(w.error.message || "");
+      bad("فشلت الكتابة: " + m.slice(0, 100));
+      if (/foreign key/i.test(m)) fatal = "شغّل ملف supabase-fix-fk.sql — قيد المفتاح الخارجي يمنع المشاركة.";
+      else if (/no unique|on conflict/i.test(m)) fatal = "شغّل ملف supabase-fix-fk.sql — المفتاح الأساسي يحتاج تعديلاً.";
+      else if (/row-level security/i.test(m)) fatal = "شغّل ملف supabase-fix-fk.sql — سياسات RLS تمنع الكتابة.";
+      else fatal = m;
+      throw new Error("stop");
+    }
+    ok("الكتابة تعمل ✔");
+
+    // ⑥ قراءة ما كُتب
+    const r = await db.from("app_state").select("key,value").eq("key", testKey).maybeSingle();
+    if (r.error || !r.data) warn("كُتب لكن تعذّرت إعادة قراءته — تحقّق من سياسات القراءة");
+    else ok("القراءة تعمل ✔ — الحفظ السحابي سليم بالكامل");
+
+    try { await db.from("app_state").delete().eq("key", testKey); } catch (e) {}
+
+    // ⑦ حالة المزامنة الحالية
+    const q = (typeof syncQueue !== "undefined") ? syncQueue.size : 0;
+    if (q > 0) warn(`يوجد ${q} تغيير في طابور الرفع — اضغط "رفع كل البيانات الآن"`);
+    const cnt = await db.from("app_state").select("key", { count: "exact", head: true });
+    if (!cnt.error) ok(`عدد المفاتيح المحفوظة سحابياً: ${cnt.count ?? 0}`);
+    if ((cnt.count ?? 0) === 0) warn("لا توجد بيانات سحابية بعد — اضغط \"رفع كل البيانات الآن\"");
+
+  } catch (e) {
+    if (String(e.message) !== "stop") bad("خطأ غير متوقع: " + (e.message || e));
+  } finally {
+    cloudBusyOff();
+  }
+
+  alert("🔍 تشخيص الحفظ السحابي\n\n" + L.join("\n") +
+        (fatal ? "\n\n━━━━━━━━━━━━━━━\n🔧 الحل:\n" + fatal : ""));
+}
+
 // ---------- واجهة لوحة السحابة ----------
 function renderCloudPanel() {
   const host = document.getElementById("cloudPanelBody");
@@ -13374,6 +13473,7 @@ function renderCloudPanel() {
       <div class="field" style="display:flex;gap:6px;flex-direction:row">
         <button class="btn btn-primary" onclick="cloudUiSaveConfig()"><i class="fas fa-save"></i> حفظ وربط</button>
         <button class="btn btn-outline" onclick="cloudTestConnection()"><i class="fas fa-stethoscope"></i> اختبار الاتصال</button>
+        <button class="btn btn-outline" onclick="diagnoseCloudSave()"><i class="fas fa-magnifying-glass-chart"></i> تشخيص الحفظ</button>
       </div>
     </div>
 
@@ -13393,6 +13493,7 @@ function renderCloudPanel() {
         يُحفظ محلياً فوراً ثم يُرفع للسحابة تلقائياً خلال ثانيتين. المؤشر أعلى الصفحة يوضّح الحالة.
       </div>
       <div class="actions" style="margin-bottom:14px">
+        <button class="btn btn-outline" onclick="diagnoseCloudSave()"><i class="fas fa-magnifying-glass-chart"></i> تشخيص الحفظ</button>
         <button class="btn btn-primary" onclick="cloudPushAll()"><i class="fas fa-cloud-arrow-up"></i> رفع كل البيانات الآن</button>
         <button class="btn btn-outline" onclick="cloudPullAll()"><i class="fas fa-cloud-arrow-down"></i> سحب من السحابة</button>
         <button class="btn btn-secondary" onclick="cloudUploadAll()"><i class="fas fa-file-invoice"></i> رفع الكوتيشنات (${quotes.length})</button>

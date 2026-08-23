@@ -3725,7 +3725,7 @@ const CBM_CONVERSION_FACTOR = 0.13;
 // but it stops the password from being trivially visible via "View Source".
 // بصمة الإصدار — اطبع APP_VERSION في Console لمعرفة النسخة المنشورة بدقة.
 // تُحدَّث مع كل تسليم، وتظهر أيضاً في لوحة الأدمن.
-const APP_VERSION = "2026.08.25";
+const APP_VERSION = "2026.08.26";
 const APP_FEATURES = [
   "guest-readonly-pricelist",   // قائمة الأسعار للقراءة فقط للزائر
   "auth-cfg-hidden",            // إعدادات الاتصال مخفية عن الزوار
@@ -11592,8 +11592,36 @@ function sanitizeCloudKey(v) {
     .replace(/^["'`]|["'`]$/g, "");                  // اقتباسات من اللصق
 }
 
+// كشف iOS/Safari — سلوك التخزين هناك مختلف ويحتاج معالجة خاصة
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+               (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const IS_SAFARI = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent);
+
+// نقرأ من ثلاثة مصادر بالترتيب.
+// السبب: Safari على iOS يمسح localStorage في الوضع الخاص وعند ضغط التخزين
+// ومع منع التتبع — فتُحفظ المفاتيح ثم تختفي، ويبدو أن "الدخول لا يعمل".
+// sessionStorage و IndexedDB أكثر صموداً هناك.
+function readCloudCfgAnywhere() {
+  // ① localStorage عبر getData
+  try {
+    const a = getData("cg_cloud_cfg", null);
+    if (a && a.url && a.key) return a;
+  } catch (e) {}
+  // ② sessionStorage
+  try {
+    const b = JSON.parse(sessionStorage.getItem("cg_cloud_cfg") || "null");
+    if (b && b.url && b.key) return b;
+  } catch (e) {}
+  // ③ نسخة احتياطية بمفتاح مختلف (تنجو أحياناً من التنظيف الجزئي)
+  try {
+    const c = JSON.parse(localStorage.getItem("bw_cfg_backup") || "null");
+    if (c && c.url && c.key) return c;
+  } catch (e) {}
+  return {};
+}
+
 function cloudConfig() {
-  const saved = getData("cg_cloud_cfg", {});
+  const saved = readCloudCfgAnywhere();
   return {
     url: sanitizeCloudUrl(SUPABASE_URL || saved.url || ""),
     key: sanitizeCloudKey(SUPABASE_ANON_KEY || saved.key || "")
@@ -11601,7 +11629,11 @@ function cloudConfig() {
 }
 
 function cloudSaveConfig(url, key) {
-  setData("cg_cloud_cfg", { url: sanitizeCloudUrl(url), key: sanitizeCloudKey(key) });
+  const cfg = { url: sanitizeCloudUrl(url), key: sanitizeCloudKey(key) };
+  // ثلاث نسخ — واحدة على الأقل تنجو من تنظيف Safari
+  try { setData("cg_cloud_cfg", cfg); } catch (e) {}
+  try { sessionStorage.setItem("cg_cloud_cfg", JSON.stringify(cfg)); } catch (e) {}
+  try { localStorage.setItem("bw_cfg_backup", JSON.stringify(cfg)); } catch (e) {}
 }
 
 // ---------- ٢) التهيئة ----------
@@ -11769,7 +11801,17 @@ function cloudErr(err, fallback) {
            "٣) المفتاح ناقص أو مقصوص عند النسخ.\n\n" +
            "استخدم زر \"اختبار الاتصال\" في لوحة الأدمن ← السحابة لمعرفة السبب بدقة.";
   }
-  if (/Failed to fetch|NetworkError/i.test(m)) return "لا يوجد اتصال بالإنترنت، أو المشروع متوقف/الرابط خطأ.";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) {
+    if (IS_IOS) {
+      return "تعذّر الاتصال من الآيفون.\n\n" +
+             "جرّب بالترتيب:\n" +
+             "١) أوقف \"Block All Cookies\" من الإعدادات ← Safari.\n" +
+             "٢) أغلق التصفح الخاص (Private Browsing).\n" +
+             "٣) جرّب شبكة أخرى — بعض شبكات الجوال تحجب Supabase.\n" +
+             "٤) حدّث iOS إن كان قديماً.";
+    }
+    return "لا يوجد اتصال بالإنترنت، أو المشروع متوقف/الرابط خطأ.";
+  }
   if (/Invalid login|invalid_credentials/i.test(m))
     return "البريد أو كلمة المرور غير صحيحة.\n\nلو أنشأت الحساب للتو، تأكد من تفعيل Auto Confirm User في Supabase ← Authentication ← Users.";
   if (/Invalid API key|No API key found/i.test(m))
@@ -12811,7 +12853,30 @@ function applyAccessMode() {
 }
 
 // يقرر وضع التشغيل عند فتح التطبيق
+// يفحص هل التخزين يعمل فعلاً — الوضع الخاص في Safari يسمح بالكتابة ثم يفقدها
+function storageWorks() {
+  try {
+    const k = "__bw_probe";
+    localStorage.setItem(k, "1");
+    const ok = localStorage.getItem(k) === "1";
+    localStorage.removeItem(k);
+    return ok;
+  } catch (e) { return false; }
+}
+
 async function initAccessMode() {
+  // تنبيه مبكر: بلا تخزين لن تُحفظ المفاتيح ولا الجلسة
+  if (!storageWorks()) {
+    setTimeout(() => alert(
+      "⚠️ متصفحك يمنع التخزين المحلي.\n\n" +
+      (IS_IOS
+        ? "على الآيفون: أغلق التصفح الخاص (Private Browsing)،\n" +
+          "ومن الإعدادات ← Safari ← أوقف \"Block All Cookies\".\n\n" +
+          "أو ثبّت الموقع كتطبيق: مشاركة ← Add to Home Screen."
+        : "افتح الموقع في نافذة عادية لا خاصة، واسمح بالكوكيز.") +
+      "\n\nبدون التخزين لن يُحفظ تسجيل الدخول."
+    ), 900);
+  }
   // حتى لو لم تُضبط السحابة بعد، يبقى الوضع مقيّداً — الوصول الكامل يحتاج
   // إما تسجيل دخول فعلياً وإما مفتاح الطوارئ برمز الأدمن.
   if (cloudConfigured()) {

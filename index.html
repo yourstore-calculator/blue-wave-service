@@ -1581,12 +1581,6 @@ input[type="checkbox"]{ width:auto; accent-color: var(--primary); }
         white-space: normal;
         overflow-wrap: break-word;
       }
-      .quotation-table thead {
-        display: none;
-      }
-      .quotation-table tfoot {
-        display: none;
-      }
       .print-grand-total {
         display: block !important;
         margin-top: 20px;
@@ -3529,8 +3523,15 @@ body.guest-mode .guest-hide{ display:none !important; }
     break-inside: avoid !important;
   }
   /* رأس الجدول يتكرر أعلى كل صفحة */
-  .quotation-table thead{ display: table-header-group; }
-  .quotation-table tfoot{ display: table-footer-group; }
+  /* رأس واحد فقط يتكرر أعلى كل صفحة.
+     كانت هناك قاعدة أقدم تُخفيه (display:none) وهذه تُظهره — تعارض
+     ينتج عنه رأس مزدوج في بعض المتصفحات. حُذفت القديمة وبقيت هذه. */
+  .quotation-table thead{ display: table-header-group !important; }
+  .quotation-table tfoot{ display: table-footer-group !important; }
+  /* أي رأس مستنسخ أو ثابت لا يُطبع */
+  .quotation-table thead + thead,
+  .quotation-table .sticky-head-clone,
+  .quotation-table thead.cloned{ display: none !important; }
   /* كتلة الإجماليات والترويسة لا تنقسم */
   .quotation-header, .qh-brand, .tot-line, .ship-line, .totals-box{
     page-break-inside: avoid !important;
@@ -3555,6 +3556,67 @@ body.guest-mode .guest-hide{ display:none !important; }
 .preset-toggle{ display:flex; align-items:center; gap:8px; font-weight:800; cursor:pointer; }
 .preset-toggle input{ width:16px; height:16px; cursor:pointer; }
 @media print{ .preset-panel{ display:none !important; } }
+
+/* أزرار أسفل الكوتيشن — لا تُطبع إطلاقاً */
+.quote-bottom-actions{
+  display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+  margin:22px auto 8px; padding:16px 12px;
+  border-top:2px dashed var(--border);
+}
+.quote-bottom-actions .btn{ min-width:170px; justify-content:center; }
+@media (max-width:600px){
+  .quote-bottom-actions .btn{ flex:1 1 100%; min-width:0; }
+}
+@media print{
+  .quote-bottom-actions,
+  .no-print{ display:none !important; }
+}
+
+/* =====================================================================================
+   إصلاح الرأس الأزرق المكرر عند الطباعة
+   -------------------------------------------------------------------------------------
+   السبب: الصفحة تحوي أكثر من جدول بصنف .quotation-table — واحد في الحاسبة
+   وآخر في قسم "الكوتيشنات النهائية". لم تكن هناك قاعدة تُخفي الأقسام غير
+   المعروضة عند الطباعة، فيُطبع الجدول الثاني أيضاً؛ ولأنه فارغ يظهر رأسه
+   الأزرق وحده فوق رأس جدولك الحقيقي.
+   الحل: لا يُطبع إلا الجدول داخل ورقة الكوتيشن المعروضة.
+   ===================================================================================== */
+@media print{
+  /* الأقسام المخفية على الشاشة لا تُطبع.
+     نستخدم .hidden وحدها فلا نكسر طباعة الأقسام الأخرى (قائمة الأسعار،
+     الكوتيشنات النهائية) حين يطبعها المستخدم من زرّها الخاص. */
+  .panel.hidden,
+  [hidden]{
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* أي جدول كوتيشن داخل قسم مخفي لا يُطبع — وهذا مصدر الرأس المكرر */
+  .hidden .quotation-table,
+  [style*="display: none"] .quotation-table,
+  [style*="display:none"] .quotation-table{
+    display: none !important;
+  }
+
+  /* رأس واحد فقط، يتكرر أعلى كل صفحة */
+  .quotation-table thead{ display: table-header-group !important; }
+  .quotation-table tfoot{ display: table-footer-group !important; }
+}
+
+/* حماية جذرية: أي صف رأس مستنسخ داخل tbody لا يُعرض ولا يُطبع.
+   الرأس الوحيد هو <thead> الحقيقي، ويتكرر عبر الصفحات بـ table-header-group. */
+.quotation-table tbody .print-header-row,
+.quotation-table tbody tr.print-header-row{
+  display: none !important;
+}
+@media print{
+  .quotation-table tbody .print-header-row,
+  .quotation-table tbody tr.print-header-row{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -3852,6 +3914,20 @@ body.guest-mode .guest-hide{ display:none !important; }
           </table>
           <div class="print-grand-total" id="printGrandTotal"></div>
           <div class="quote-terms" id="quoteTerms"></div>
+        </div>
+
+        <!-- أزرار أسفل الكوتيشن — بعد الإجماليات والشروط مباشرة.
+             no-print تمنع ظهورها في الطباعة أو ملف PDF. -->
+        <div class="quote-bottom-actions no-print">
+          <button class="btn btn-primary" onclick="preparePrintAndPrint()">
+            <i class="fas fa-print"></i> طباعة الكوتيشن / PDF
+          </button>
+          <button class="btn btn-whatsapp" onclick="shareViaWhatsApp()">
+            <i class="fab fa-whatsapp"></i> إرسال عبر واتساب
+          </button>
+          <button class="btn btn-success" onclick="saveCurrentQuote()">
+            <i class="fas fa-save"></i> حفظ الكوتيشن
+          </button>
         </div>
       </div>
     </div>
@@ -4359,7 +4435,7 @@ body.guest-mode .guest-hide{ display:none !important; }
 // but it stops the password from being trivially visible via "View Source".
 // بصمة الإصدار — اطبع APP_VERSION في Console لمعرفة النسخة المنشورة بدقة.
 // تُحدَّث مع كل تسليم، وتظهر أيضاً في لوحة الأدمن.
-const APP_VERSION = "2026.09.12";
+const APP_VERSION = "2026.09.17";
 const APP_FEATURES = [
   "guest-readonly-pricelist",   // قائمة الأسعار للقراءة فقط للزائر
   "auth-cfg-hidden",            // إعدادات الاتصال مخفية عن الزوار
@@ -4938,6 +5014,37 @@ function parseNumber(value) {
   str = str.replace(/,/g, '.');
   let num = parseFloat(str);
   return isNaN(num) ? 0 : num;
+}
+
+// معرّف فريد تشفيرياً — يمنع تصادم المعرّفات بين الموظفين المتزامنين.
+// crypto.randomUUID متاح في كل المتصفحات الحديثة، مع بديل آمن للقديمة.
+function newUuid() {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+      const b = crypto.getRandomValues(new Uint8Array(16));
+      b[6] = (b[6] & 0x0f) | 0x40;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+      return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+    }
+  } catch (e) {}
+  return "id-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+// بيانات الملكية والتوقيت — تُلحق بكل سجل يُحفظ
+function ownershipStamp(existing) {
+  const now = new Date().toISOString();
+  const who = (typeof cloudUser !== "undefined" && cloudUser)
+    ? (cloudUser.email || cloudUser.id) : "local";
+  return {
+    created_by: (existing && existing.created_by) || who,
+    updated_by: who,
+    created_at: (existing && existing.created_at) || now,
+    updated_at: now
+  };
 }
 
 function uid() {
@@ -9541,25 +9648,94 @@ function buildProductOptionsGrouped(selectedProductId) {
   return html;
 }
 
-function generateNote(openings) {
-  if (!openings || openings.length === 0) return "WITHOUT OPEN";
-  let parts = [];
-  openings.forEach((op, idx) => {
-    const moves = op.moves || 1;
-    let meshLabel = "";
-    switch(op.meshKey) {
-      case "none": meshLabel = "No net"; break;
-      case "fixed": meshLabel = "Fixed net"; break;
-      case "sliding": meshLabel = "Sliding net"; break;
-      case "folding": meshLabel = "Folding net"; break;
-      case "door": meshLabel = "Door net"; break;
-      default: meshLabel = "No net";
-    }
-    parts.push(`Opening ${idx+1}:`);
-    parts.push(`  ${moves} move(s)`);
-    parts.push(`  ${meshLabel}`);
-  });
-  return parts.join('\n');
+// =====================================================================================
+// مولّد ملاحظات النوافذ — UPPERCASE، سطراً سطراً، بلا أسطر فارغة
+// -------------------------------------------------------------------------------------
+//   القالب الأساسي:  ONE OPEN / DOOR NET
+//   ثم تُضاف الخيارات المفعّلة فقط — لا null ولا undefined ولا خيار غير مختار.
+// =====================================================================================
+// يميّز الملاحظة المولَّدة تلقائياً عن التي كتبها المستخدم.
+// نتعرّف على بصمات الصيغتين: القديمة ("Opening 1:", "move(s)")
+// والجديدة (ONE OPEN / DOOR NET / HIDDEN HINGES ...).
+const AUTO_NOTE_MARKERS = [
+  /^opening\s+\d+\s*:/im,        // الصيغة القديمة
+  /\bmove\(s\)/i,
+  /^(without open|one open|two open|three open|four open|five open|six open|seven open|eight open)\b/im,
+  /^hidden hinges\b/im
+];
+
+// توحيد عرض الملاحظة في كل مكان: المولَّدة تُعرض UPPERCASE سطراً سطراً،
+// وملاحظة المستخدم تبقى كما كتبها بلا أي تعديل.
+function normalizeNoteForDisplay(note) {
+  const t = String(note || "").trim();
+  if (!t) return "";
+  if (!isAutoGeneratedNote(t)) return t;              // ملاحظة المستخدم
+  const seen = new Set();
+  return t.split(/\r?\n/)
+    .map(l => l.trim().toUpperCase())
+    .filter(l => l && !/^(null|undefined)$/i.test(l) && !seen.has(l) && seen.add(l) !== false)
+    .join("\n");
+}
+
+function isAutoGeneratedNote(note) {
+  const t = String(note || "").trim();
+  if (!t) return true;
+  return AUTO_NOTE_MARKERS.some(re => re.test(t));
+}
+
+const NOTE_MOVES_WORDS = ["", "ONE OPEN", "TWO OPEN", "THREE OPEN", "FOUR OPEN",
+                          "FIVE OPEN", "SIX OPEN", "SEVEN OPEN", "EIGHT OPEN"];
+
+// يحوّل مفتاح الشبك لتسمية إنجليزية كبيرة
+function meshLabelUpper(meshKey) {
+  if (!meshKey || meshKey === "none") return "";
+  // نُفضّل التسمية الفعلية من قائمة الشبك عند وجودها
+  const m = (typeof meshes !== "undefined" && Array.isArray(meshes))
+    ? meshes.find(x => x.key === meshKey) : null;
+  if (m && m.label) return String(m.label).toUpperCase().trim();
+
+  const map = {
+    fixed: "FIXED NET", sliding: "SLIDE NET", slide: "SLIDE NET",
+    folding: "FOLDING NET", door: "DOOR NET"
+  };
+  return map[meshKey] || String(meshKey).toUpperCase();
+}
+
+function generateNote(openings, row) {
+  const lines = [];
+
+  if (!openings || openings.length === 0) {
+    lines.push("WITHOUT OPEN");
+  } else {
+    openings.forEach(op => {
+      const moves = parseNumber(op.moves) || 1;
+      const word = NOTE_MOVES_WORDS[moves] || `${moves} OPEN`;
+      lines.push(word);
+      const mesh = meshLabelUpper(op.meshKey);
+      if (mesh) lines.push(mesh);            // الشبك غير المختار لا يُطبع
+    });
+  }
+
+  // شبك السلايد (حقل مستقل عن الفتحات)
+  if (row && row.slidingMeshKey && row.slidingMeshKey !== "none") {
+    const sm = meshLabelUpper(row.slidingMeshKey);
+    if (sm) lines.push(sm);
+  }
+
+  // إضافات مفعّلة أخرى على الصف
+  if (row && Array.isArray(row.extraOptions)) {
+    row.extraOptions.forEach(o => {
+      const t = String(o || "").trim();
+      if (t) lines.push(t.toUpperCase());
+    });
+  }
+
+  // إزالة الفراغات والتكرار مع الحفاظ على الترتيب
+  const seen = new Set();
+  return lines
+    .map(l => String(l || "").trim())
+    .filter(l => l && !seen.has(l) && seen.add(l) !== false)
+    .join("\n");
 }
 
 // ===== ميزة الكود السريع (متعدد الأسطر) =====
@@ -10110,7 +10286,11 @@ function calcItem(row) {
   const openingCost = openings.length * Number(product.openingPrice);
   linePrice = ceilMoney((pricingArea * Number(product.pricePerM2)) + openingCost + totalMeshPrice);
 
-  if (!note) note = generateNote(openings);
+  // الملاحظات المولَّدة تلقائياً تُعاد صياغتها بالصيغة الجديدة.
+  // بدون هذا، أي صف حُفظ بالصيغة القديمة ("Opening 1: / 1 move(s)") يبقى عليها
+  // إلى الأبد ولا يظهر التحديث — وهذا سبب "الملاحظات لم تُحدَّث".
+  // أما ما كتبه المستخدم بيده فيبقى كما هو ولا يُمسّ.
+  if (!note || isAutoGeneratedNote(note)) note = generateNote(openings, row);
   const total = linePrice * qty;
   return { baseArea: roundAreaUp(baseArea), finalArea, linePrice, total, note, description: product.description || "", product };
 }
@@ -10183,14 +10363,7 @@ function calcDoorItem(row) {
   // and only when the user hasn't typed their own note for this row (same override
   // pattern calcItem() already uses above, for consistency).
   let note = row.note || "";
-  if (!note) {
-    note = product.doorFixedNote || "";
-    // أسماء الإضافات المختارة تُدرج تلقائياً في الملاحظة لتظهر بالكوتيشن والطباعة
-    const addons = (typeof doorAddonsLabels === "function") ? doorAddonsLabels(row) : [];
-    if (addons.length) note = note ? `${note}\n${addons.join(" + ")}` : addons.join(" + ");
-    const op = (typeof doorOpeningById === "function") ? doorOpeningById(row.doorOpeningId) : null;
-    if (op) note = note ? `${note}\n${op.label}` : op.label;
-  }
+  if (!note || isAutoGeneratedNote(note)) note = generateDoorNote(row, product);
 
   // المساحة المعروضة:
   //  - per_sqm: تُعرض مقرَّبة لأنها الأساس الفعلي للتسعير (شفافية مع العميل).
@@ -10260,7 +10433,16 @@ function calcFormulaItem(row, product) {
     finalArea: displayArea,
     linePrice,
     total: linePrice * qty,
-    note: row.note || product.doorFixedNote || "",
+    // تعميم صيغة الملاحظات على كل أنواع المنتجات — بما فيها المنتجات
+    // بمعادلة مخصّصة. الملاحظة المولَّدة تُرقَّى للصيغة الجديدة (UPPERCASE
+    // سطراً سطراً)، وما كتبه المستخدم بيده يبقى كما هو.
+    note: (function () {
+      const n = row.note || "";
+      if (n && !isAutoGeneratedNote(n)) return n;          // ملاحظة المستخدم
+      const isDoor = product.productCategoryId === "doors";
+      if (isDoor) return generateDoorNote(row, product);
+      return generateNote(row.openings || [], row);
+    })(),
     description: product.description || "",
     product
   };
@@ -10490,6 +10672,48 @@ function doorAddonsTotal(row) {
 }
 
 // أسماء الإضافات المختارة — تُدرج في ملاحظة الصف تلقائياً
+// =====================================================================================
+// مولّد ملاحظات الأبواب — UPPERCASE، سطراً سطراً
+//   الأساس: HIDDEN HINGES (أو الملاحظة الثابتة للمنتج إن وُجدت)
+//   ثم الإضافات المختارة تحته مباشرة، كل واحدة في سطر.
+// =====================================================================================
+const DOOR_NOTE_BASE = "HIDDEN HINGES";
+
+function generateDoorNote(row, product) {
+  const lines = [];
+
+  // الأساس: ملاحظة المنتج الثابتة إن وُجدت، وإلا القالب الافتراضي
+  const fixed = String((product && product.doorFixedNote) || "").trim();
+  if (fixed) {
+    fixed.split(/\r?\n/).forEach(l => {
+      const t = l.trim();
+      if (t) lines.push(t.toUpperCase());
+    });
+  } else {
+    lines.push(DOOR_NOTE_BASE);
+  }
+
+  // الإضافات المختارة — كل واحدة في سطر مستقل
+  const addons = (typeof doorAddonsLabels === "function") ? doorAddonsLabels(row) : [];
+  addons.forEach(a => {
+    const t = String(a || "").trim();
+    if (t) lines.push(t.toUpperCase());
+  });
+
+  // اتجاه الفتح إن اختير
+  const op = (typeof doorOpeningById === "function") ? doorOpeningById(row.doorOpeningId) : null;
+  if (op && op.label) {
+    const t = String(op.label).trim();
+    if (t) lines.push(t.toUpperCase());
+  }
+
+  const seen = new Set();
+  return lines
+    .map(l => String(l || "").trim())
+    .filter(l => l && !seen.has(l) && seen.add(l) !== false)
+    .join("\n");
+}
+
 function doorAddonsLabels(row) {
   const ids = Array.isArray(row.doorAddonIds) ? row.doorAddonIds : [];
   return ids.map(id => {
@@ -11388,7 +11612,9 @@ function renderQuoteRows(rowsData) {
     // so multi-line notes rendered as one line containing visible backslash-n text instead of
     // an actual line break. We now just HTML-escape the text (escapeAttr already preserves
     // real newlines) and let the textarea display them naturally.
-    tbodyHtml += `<td class="col-note"><textarea class="editable-textarea">${escapeAttr(r.note || "")}</textarea><div class="print-text" style="display:none">${escapeAttr(r.note || "")}</div></td>`;
+    // نفس صيغة الكوتيشن الرئيسي: UPPERCASE سطراً سطراً
+    const noteTxt = normalizeNoteForDisplay(r.note);
+    tbodyHtml += `<td class="col-note"><textarea class="editable-textarea">${escapeAttr(noteTxt)}</textarea><div class="print-text" style="display:none">${escapeAttr(noteTxt)}</div></td>`;
 
     if (!descHidden) {
       tbodyHtml += `<td class="desc-cell" rowspan="${r.descRowSpan || 1}"><textarea class="editable-textarea">${escapeAttr(r.description || "")}</textarea><div class="print-text" style="display:none">${escapeAttr(r.description || "")}</div></td>`;
@@ -11497,37 +11723,31 @@ function buildRowsDataFromBuilder() {
 }
 
 let printHeaderRow = null;
+// =====================================================================================
+// تحضير الطباعة
+// -------------------------------------------------------------------------------------
+// ⚠️ سبب الرأس الأزرق المكرر:
+// كانت هذه الدالة تستنسخ صف الرأس يدوياً وتحقنه داخل <tbody> (.print-header-row)
+// — حلٌّ قديم لتكرار الرأس عبر الصفحات قبل استخدام display:table-header-group.
+// وبعد إضافة القاعدة صار الاثنان يعملان معاً: رأس من المتصفح + رأس مستنسخ.
+// الآن نعتمد على table-header-group وحدها (تكرّر الرأس تلقائياً في كل صفحة)،
+// وننظّف أي صف مستنسخ متبقٍ من نسخة سابقة.
+// =====================================================================================
 function preparePrint() {
   const table = document.getElementById("quotationTable");
-  const originalThead = table.querySelector("thead");
-  const tbody = table.querySelector("tbody");
-  if (!originalThead || !tbody) return;
-
-  const existingPrintRow = tbody.querySelector(".print-header-row");
-  if (existingPrintRow) existingPrintRow.remove();
-
-  const headerCells = originalThead.querySelectorAll("th");
-  const newRow = document.createElement("tr");
-  newRow.classList.add("print-header-row");
-  headerCells.forEach(cell => {
-    const newCell = document.createElement("th");
-    newCell.textContent = cell.textContent;
-    cell.className.split(' ').forEach(cls => newCell.classList.add(cls));
-    newRow.appendChild(newCell);
-  });
-  if (tbody.firstChild) {
-    tbody.insertBefore(newRow, tbody.firstChild);
-  } else {
-    tbody.appendChild(newRow);
-  }
-  printHeaderRow = newRow;
+  if (!table) return;
+  // إزالة أي صف رأس مستنسخ (من كود قديم أو نسخة مخزّنة)
+  table.querySelectorAll("tbody .print-header-row").forEach(r => r.remove());
+  printHeaderRow = null;
 }
 
 function restorePrint() {
-  if (printHeaderRow && printHeaderRow.parentNode) {
-    printHeaderRow.remove();
-    printHeaderRow = null;
-  }
+  // احتياطي: لو بقي صف مستنسخ لأي سبب، نزيله
+  try {
+    const table = document.getElementById("quotationTable");
+    if (table) table.querySelectorAll("tbody .print-header-row").forEach(r => r.remove());
+  } catch (e) {}
+  printHeaderRow = null;
 }
 
 function preparePrintAndPrint() {
@@ -11771,13 +11991,31 @@ function saveCurrentQuote() {
       rightText: document.getElementById("quoteHeaderRight").textContent,
       logo: settings.logo || ""
     },
-    rows,
+    // كل بند يحمل معرّفاً فريداً — يمنع تصادم البنود بين الموظفين المتزامنين
+    rows: rows.map(r => ({ ...r, id: r.id || newUuid() })),
     columnWidths: { ...currentColumnWidths }
   };
 
   if (!quotes) quotes = [];
 
   const existingIndex = quotes.findIndex(q => q.id === data.id);
+  const existing = existingIndex >= 0 ? quotes[existingIndex] : null;
+
+  // وسم الملكية والتوقيت
+  Object.assign(data, ownershipStamp(existing));
+
+  // قفل تفاؤلي: لو عُدِّل السجل من موظف آخر بعد أن فتحته، نسأل قبل الاستبدال
+  if (existing && existing.updated_at && meta.loadedAt &&
+      new Date(existing.updated_at) > new Date(meta.loadedAt)) {
+    const who = existing.updated_by || "موظف آخر";
+    const ok = confirm(
+      `⚠️ عُدِّل هذا الكوتيشن بواسطة ${who} بعد أن فتحته.\n\n` +
+      "موافق = استبدال تعديلاته بتعديلاتك\n" +
+      "إلغاء = إلغاء الحفظ للمراجعة"
+    );
+    if (!ok) { showToast("أُلغي الحفظ — راجع نسخة زميلك", "warn"); return; }
+  }
+
   if (existingIndex >= 0) {
     quotes[existingIndex] = data;
   } else {
@@ -11864,6 +12102,15 @@ function freeLocalSpaceForQuotes() {
 }
 
 function openSavedQuote(id, fullPage = true) {
+  // نسجّل لحظة الفتح — تُقارَن عند الحفظ لكشف تعديل زميل بينهما
+  try {
+    const panel = document.getElementById("quotationPanel");
+    if (panel && panel.dataset.currentQuoteData) {
+      const m = JSON.parse(panel.dataset.currentQuoteData);
+      m.loadedAt = new Date().toISOString();
+      panel.dataset.currentQuoteData = JSON.stringify(m);
+    }
+  } catch (e) {}
   const q = quotes.find(x => x.id === id);
   if (!q) return;
 
@@ -14695,6 +14942,13 @@ async function ensureFreshSession() {
 // يمنع أي فشل شبكي من تجميد الواجهة أو كسر الحالة، ويحاول تجديد الجلسة
 // مرة واحدة قبل الاستسلام. يرجع دائماً { data, error } بلا رمي استثناء.
 // =====================================================================================
+const RETRY_DELAYS = [500, 1500, 4000];   // تصاعدي: نصف ثانية ← ثانية ونصف ← أربع
+
+function isRetryableError(err) {
+  const m = String((err && err.message) || err || "");
+  return /Failed to fetch|NetworkError|Load failed|timeout|ECONN|503|502|504|rate limit/i.test(m);
+}
+
 async function safeDbCall(operation, fallbackMsg) {
   if (typeof operation !== "function") return { data: null, error: new Error("عملية غير صالحة") };
 
@@ -14703,24 +14957,38 @@ async function safeDbCall(operation, fallbackMsg) {
     return (res && typeof res === "object") ? res : { data: res, error: null };
   };
 
-  try {
-    let res = await run();
+  let res;
+  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    try {
+      res = await run();
 
-    // رمز منتهٍ: نجدّد الجلسة ونُعيد المحاولة مرة واحدة
-    if (res && res.error && /JWT|token|expired|401|not authenticated/i.test(String(res.error.message || ""))) {
-      const ok = await ensureFreshSession();
-      if (ok) res = await run();
+      // رمز منتهٍ: نجدّد الجلسة ونُعيد المحاولة فوراً بلا انتظار
+      if (res && res.error && /JWT|token|expired|401|not authenticated/i.test(String(res.error.message || ""))) {
+        const ok = await ensureFreshSession();
+        if (ok) { res = await run(); }
+      }
+
+      if (!res || !res.error) return res;                    // نجح
+      if (!isRetryableError(res.error)) break;               // خطأ لا تنفع معه الإعادة
+    } catch (e) {
+      res = { data: null, error: e };
+      if (!isRetryableError(e)) break;
     }
 
-    if (res && res.error && fallbackMsg && typeof showToast === "function") {
-      showToast(fallbackMsg, "warn");
+    // ما زال هناك محاولات: ننتظر ونُعلم المستخدم
+    if (attempt < RETRY_DELAYS.length) {
+      const wait = RETRY_DELAYS[attempt];
+      if (typeof showToast === "function") {
+        showToast(`تعذّر الاتصال — إعادة المحاولة ${attempt + 1}/${RETRY_DELAYS.length}`, "info");
+      }
+      await new Promise(r => setTimeout(r, wait));
     }
-    return res;
-  } catch (e) {
-    console.error("safeDbCall:", e);
-    if (fallbackMsg && typeof showToast === "function") showToast(fallbackMsg, "warn");
-    return { data: null, error: e };
   }
+
+  if (res && res.error && fallbackMsg && typeof showToast === "function") {
+    showToast(fallbackMsg, "warn");
+  }
+  return res || { data: null, error: new Error("فشل غير معروف") };
 }
 
 // =====================================================================================

@@ -3617,6 +3617,134 @@ body.guest-mode .guest-hide{ display:none !important; }
     height: 0 !important;
   }
 }
+
+/* =====================================================================================
+   الإجماليات مرة واحدة عند الطباعة
+   -------------------------------------------------------------------------------------
+   كانت تظهر مرتين: مرة في تذييل الجدول (.grand-row) ومرة في كتلة الطباعة
+   (#printGrandTotal). نُبقي السفلية فقط كما طُلب.
+   ===================================================================================== */
+@media print{
+  .quotation-table tfoot,
+  .quotation-table .grand-row{
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+  }
+  #printGrandTotal{
+    display: block !important;
+    visibility: visible !important;
+  }
+}
+
+/* =====================================================================================
+   تنسيق ألوان الكوتيشن — هادئ ومريح للعين
+   -------------------------------------------------------------------------------------
+   المبدأ: الأبيض يبقى هو الأساس، ونضيف تدرّجات رمادية-زرقاء خفيفة جداً
+   لفصل الصفوف وإبراز الأرقام المهمة. بلا ألوان صارخة ولا زخرفة زائدة.
+   كلها مشتقّة من كحلي الهوية #1e3a8a فتبدو عائلة واحدة.
+   ===================================================================================== */
+
+/* الورقة: بياض دافئ بدل الأبيض الصافي — أريح للقراءة الطويلة */
+.quotation-page{
+  background: #FCFDFE;
+  border: 1px solid #E3E9F2;
+  border-radius: 12px;
+}
+
+/* صفوف متناوبة بفارق شبه محسوس فقط */
+.quotation-table tbody tr:nth-child(even) td{
+  background: #F7F9FC;
+}
+.quotation-table tbody tr:nth-child(odd) td{
+  background: #FFFFFF;
+}
+.quotation-table tbody tr:hover td{
+  background: #EEF3FB;
+}
+
+/* حدود أفتح — الشبكة تفصل بلا أن تزحم */
+.quotation-table td{
+  border-color: #E6ECF5 !important;
+}
+
+/* عمود الرقم: خلفية خفيفة تثبّت بداية الصف بصرياً */
+.quotation-table td.col-no{
+  background: #F0F4FA !important;
+  color: #1e3a8a;
+}
+
+/* السعر والإجمالي: الرقمان الأهم للعميل */
+.quotation-table td.col-price{ color: #1F3B6E; }
+.quotation-table td.col-total{
+  background: #F4F7FC !important;
+  color: #14213D;
+}
+
+/* الملاحظة والوصف: رمادي أهدأ — معلومات مساندة لا رئيسية */
+.quotation-table td.col-note,
+.quotation-table td.col-desc{
+  color: #4A5568;
+}
+
+/* كتلة الإجماليات: بيج فاتح جداً بخط ذهبي رفيع */
+.quotation-table .grand-row td,
+.totals-box{
+  background: #FBF8F1 !important;
+  border-top: 2px solid #C9A23D !important;
+  color: #14213D;
+}
+
+/* سطر الشحن: أزرق باهت يميّزه عن بقية الإجماليات */
+.ship-line{
+  background: #F2F6FC !important;
+  border: 1px solid #DDE6F4;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+/* المبلغ النهائي: أبرز عنصر في الورقة */
+#finalTotalRow{
+  background: #1e3a8a;
+  color: #FFFFFF !important;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-top: 10px;
+}
+#finalTotalRow #finalTotalBox{
+  color: #FFD98A !important;
+  font-weight: 800;
+}
+
+/* الترويسة: خط فاصل ذهبي رفيع */
+.quotation-header, .qh-meta{
+  border-bottom: 1px solid #EAE0C8;
+}
+
+/* الشروط: صندوق رمادي هادئ */
+.quote-terms{
+  background: #F8FAFC;
+  border-inline-start: 3px solid #C9A23D;
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: #4A5568;
+}
+
+/* ---------- الطباعة: نفس الألوان بالضبط ---------- */
+@media print{
+  .quotation-page{ background:#FFFFFF; border:none; }
+  .quotation-table tbody tr:nth-child(even) td{ background:#F7F9FC !important; }
+  .quotation-table tbody tr:nth-child(odd) td{ background:#FFFFFF !important; }
+  .quotation-table tbody tr:hover td{ background:inherit !important; }
+  .quotation-table td.col-no{ background:#F0F4FA !important; }
+  .quotation-table td.col-total{ background:#F4F7FC !important; }
+  .ship-line{ background:#F2F6FC !important; border:1px solid #DDE6F4 !important; }
+  #finalTotalRow{ background:#1e3a8a !important; color:#fff !important; }
+  #finalTotalRow #finalTotalBox{ color:#FFD98A !important; }
+  .quote-terms{ background:#F8FAFC !important; }
+  .quotation-page,
+  .quotation-page *{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
 </style>
 </head>
 <body>
@@ -3890,13 +4018,12 @@ body.guest-mode .guest-hide{ display:none !important; }
                        الأمتار = مجموع ما يُحسب بالمتر فقط (الأبواب الستاندر تُسعَّر للوحدة
                        فلا تدخل في الرقم المعروض، لكن تكلفتها تدخل في المجموع). -->
                   <div id="shippingRow" class="ship-line" dir="rtl">
-                    <span class="ship-ico"><i class="fas fa-truck"></i></span>
-                    <span class="ship-lbl">الشحن :</span>
-                    <span class="ship-num" dir="ltr"><bdi><span id="shippingAmount">0</span></bdi></span>
-                    <span class="ship-unit">متر</span>
+                    <span class="ship-ico">🚢</span>
+                    <span class="ship-lbl">الشحن البحري</span>
                     <span class="ship-eq" dir="ltr"><bdi>=</bdi></span>
                     <span class="ship-num" dir="ltr"><bdi><input type="number" step="0.01" id="shippingCbmResult" value="0.00" class="ship-val" oninput="updateFinalTotalFromManualShipping()"><span id="shippingCbmResultPrint" class="print-text ship-val-print">0.00</span></bdi></span>
                     <span class="ship-cur">ريال</span>
+                    <span id="shippingAmount" style="display:none">0</span>
                   </div>
                   <div id="discountRow" style="margin-top: 4px; font-size:14px; display: none;">
                     <i class="fas fa-tag"></i> الخصم: <span id="discountAmount">0.00</span> ريال
@@ -4435,7 +4562,7 @@ body.guest-mode .guest-hide{ display:none !important; }
 // but it stops the password from being trivially visible via "View Source".
 // بصمة الإصدار — اطبع APP_VERSION في Console لمعرفة النسخة المنشورة بدقة.
 // تُحدَّث مع كل تسليم، وتظهر أيضاً في لوحة الأدمن.
-const APP_VERSION = "2026.09.17";
+const APP_VERSION = "2026.09.19";
 const APP_FEATURES = [
   "guest-readonly-pricelist",   // قائمة الأسعار للقراءة فقط للزائر
   "auth-cfg-hidden",            // إعدادات الاتصال مخفية عن الزوار
@@ -11262,7 +11389,7 @@ function updateDiscountAndTotals(skipManualShippingSync = false) {
     printTotalDiv.innerHTML =
       `<div><i class="fas fa-chart-line"></i> إجمالي المساحة الكلية : <bdi dir="ltr">${money(totalArea)}</bdi> م²</div>` +
       `<div><i class="fas fa-gem"></i> السعر شامل التوصيل والتركيب : <bdi dir="ltr">${money(productsTotal)}</bdi> ريال</div>` +
-      `<div class="ship-print-line"><i class="fas fa-truck"></i> الشحن : <bdi dir="ltr">${cbmTxt}</bdi> متر = <bdi dir="ltr">${money(finalShippingCost)}</bdi> ريال</div>`;
+      `<div class="ship-print-line">🚢 الشحن البحري = <bdi dir="ltr">${money(finalShippingCost)}</bdi> ريال</div>`;
     if (disc > 0) {
       printTotalDiv.innerHTML += `<br><i class="fas fa-tag"></i> الخصم: ${money(disc)} ريال<br><i class="fas fa-file-invoice-dollar"></i> المبلغ الإجمالي النهائي: ${money(finalTotal < 0 ? 0 : finalTotal)} ريال`;
     } else {
@@ -12201,7 +12328,7 @@ function shareViaWhatsApp() {
   if (custName) message += `العميل: ${custName}\n`;
   message += `رقم الكوتيشن: ${quoteNo}\n`;
   message += `إجمالي المنتجات: ${grandTotal} ريال\n`;
-  message += `الشحن : ${shippingCbm} متر = ${shippingCost} ريال\n`;
+  message += `🚢 الشحن البحري = ${shippingCost} ريال\n`;
   if (currentDiscount > 0) message += `الخصم: ${money(currentDiscount)} ريال\n`;
   message += `الإجمالي النهائي: ${finalTotal} ريال\n\nمع تحيات Blue Wave Service`;
 

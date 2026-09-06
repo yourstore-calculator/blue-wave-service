@@ -3501,15 +3501,21 @@ body.guest-mode .guest-hide{ display:none !important; }
    منع قصّ الصفوف والصور عند الطباعة / تصدير PDF
    ===================================================================================== */
 @media print{
-  .quotation-table tr,
-  .quotation-table thead tr,
-  .quotation-table tbody tr,
-  .quotation-table .grand-row{
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+  /* الصفوف القصيرة لا تنقسم، أما الطويلة (صورة كبيرة + وصف مطوّل)
+     فنسمح بانقسامها — منعها كان يدفعها لصفحة جديدة كاملة ويترك
+     فراغاً كبيراً في نهاية الصفحة السابقة. */
+  .quotation-table tbody tr{
+    page-break-inside: auto;
+    break-inside: auto;
   }
   .quotation-table td,
   .quotation-table th{
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+  /* الإجماليات لا تنقسم أبداً */
+  .quotation-table .grand-row,
+  .totals-box, .ship-line, #finalTotalRow{
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
@@ -3521,12 +3527,16 @@ body.guest-mode .guest-hide{ display:none !important; }
   .col-style img{
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    max-height: 150px !important;      /* حجم معقول للطباعة يقلّل الفراغ */
+    object-fit: contain !important;
   }
   /* رأس الجدول يتكرر أعلى كل صفحة */
   /* رأس واحد فقط يتكرر أعلى كل صفحة.
      كانت هناك قاعدة أقدم تُخفيه (display:none) وهذه تُظهره — تعارض
      ينتج عنه رأس مزدوج في بعض المتصفحات. حُذفت القديمة وبقيت هذه. */
-  .quotation-table thead{ display: table-header-group !important; }
+  /* الرأس مرة واحدة فقط في أول صفحة — table-header-group كانت تُكرّره
+     أعلى كل صفحة وهو غير مرغوب. table-row-group تجعله صفاً عادياً. */
+  .quotation-table thead{ display: table-row-group !important; }
   .quotation-table tfoot{ display: table-footer-group !important; }
   /* أي رأس مستنسخ أو ثابت لا يُطبع */
   .quotation-table thead + thead,
@@ -3599,12 +3609,14 @@ body.guest-mode .guest-hide{ display:none !important; }
   }
 
   /* رأس واحد فقط، يتكرر أعلى كل صفحة */
-  .quotation-table thead{ display: table-header-group !important; }
+  /* الرأس مرة واحدة فقط في أول صفحة — table-header-group كانت تُكرّره
+     أعلى كل صفحة وهو غير مرغوب. table-row-group تجعله صفاً عادياً. */
+  .quotation-table thead{ display: table-row-group !important; }
   .quotation-table tfoot{ display: table-footer-group !important; }
 }
 
 /* حماية جذرية: أي صف رأس مستنسخ داخل tbody لا يُعرض ولا يُطبع.
-   الرأس الوحيد هو <thead> الحقيقي، ويتكرر عبر الصفحات بـ table-header-group. */
+   الرأس الوحيد هو <thead> الحقيقي، ويظهر مرة واحدة في أول صفحة. */
 .quotation-table tbody .print-header-row,
 .quotation-table tbody tr.print-header-row{
   display: none !important;
@@ -3744,6 +3756,61 @@ body.guest-mode .guest-hide{ display:none !important; }
   .quote-terms{ background:#F8FAFC !important; }
   .quotation-page,
   .quotation-page *{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+
+/* =====================================================================================
+   ضبط الطباعة: كل شيء متماسك في أقل عدد صفحات
+   -------------------------------------------------------------------------------------
+   الصورة أظهرت صفوفاً متباعدة وصوراً كبيرة تدفع الكوتيشن لصفحتين.
+   نُقلّص الحشو وارتفاع الصور فيتماسك المحتوى — بلا تصغير الخط عن حدّ القراءة.
+   ===================================================================================== */
+@media print{
+  /* حشو أضيق للخلايا */
+  .quotation-table td{
+    padding: 4px 4px !important;
+    vertical-align: middle !important;
+  }
+  .quotation-table thead th{
+    padding: 5px 3px !important;
+  }
+
+  /* الصور: ارتفاع موحّد معقول — كانت تتمدد فتُباعد الصفوف */
+  .quotation-table td.col-style img,
+  .quotation-table td.col-open img,
+  .style-img{
+    max-height: 108px !important;
+    height: auto !important;
+    width: auto !important;
+    max-width: 100% !important;
+    object-fit: contain !important;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* الوصف والملاحظة: سطر أضيق يوفّر ارتفاعاً */
+  .quotation-table td.col-note,
+  .quotation-table td.col-desc{
+    line-height: 1.35 !important;
+    padding: 4px 6px !important;
+  }
+
+  /* الترويسة أصغر قليلاً — توفّر مساحة للجدول */
+  .qh-brand{ gap: 3px !important; margin-bottom: 5px !important; }
+  .qh-brand .quote-logo{ max-height: 62px !important; }
+  .qh-brand .quote-company{ font-size: 1.12rem !important; }
+  .qh-customer{ font-size: 0.9rem !important; padding: 3px 14px !important; }
+  .qh-meta{ font-size: 0.78rem !important; padding: 5px 18px 2px !important; }
+  .quotation-page{ padding: 4mm 3mm !important; }
+
+  /* الإجماليات والشروط متماسكة */
+  .print-grand-total{ margin-top: 8px !important; }
+  .print-grand-total > div{ margin: 2px 0 !important; line-height: 1.5 !important; }
+  .quote-terms{ margin-top: 8px !important; padding: 8px 12px !important; line-height: 1.45 !important; }
+  .ship-line{ padding: 5px 10px !important; margin: 4px 0 !important; }
+  #finalTotalRow{ padding: 6px 12px !important; margin-top: 6px !important; }
+
+  /* العلامة المائية لا تفرض ارتفاعاً */
+  #quoteWatermark{ position: absolute !important; pointer-events: none; }
 }
 </style>
 </head>
@@ -4562,7 +4629,7 @@ body.guest-mode .guest-hide{ display:none !important; }
 // but it stops the password from being trivially visible via "View Source".
 // بصمة الإصدار — اطبع APP_VERSION في Console لمعرفة النسخة المنشورة بدقة.
 // تُحدَّث مع كل تسليم، وتظهر أيضاً في لوحة الأدمن.
-const APP_VERSION = "2026.09.19";
+const APP_VERSION = "2026.09.20";
 const APP_FEATURES = [
   "guest-readonly-pricelist",   // قائمة الأسعار للقراءة فقط للزائر
   "auth-cfg-hidden",            // إعدادات الاتصال مخفية عن الزوار
@@ -11857,7 +11924,7 @@ let printHeaderRow = null;
 // كانت هذه الدالة تستنسخ صف الرأس يدوياً وتحقنه داخل <tbody> (.print-header-row)
 // — حلٌّ قديم لتكرار الرأس عبر الصفحات قبل استخدام display:table-header-group.
 // وبعد إضافة القاعدة صار الاثنان يعملان معاً: رأس من المتصفح + رأس مستنسخ.
-// الآن نعتمد على table-header-group وحدها (تكرّر الرأس تلقائياً في كل صفحة)،
+// الآن الرأس يظهر مرة واحدة فقط في أول صفحة (table-row-group)،
 // وننظّف أي صف مستنسخ متبقٍ من نسخة سابقة.
 // =====================================================================================
 function preparePrint() {

@@ -2434,7 +2434,8 @@ body.customer-view .internal-only{ display:none !important; }
 }
 .style-img-container{ display:flex !important; align-items:center; justify-content:center; width:100%; }
 @media print{
-  .style-img{ max-height:88px !important; }
+  /* حد الارتفاع أُزيل — الصور تملأ خلية الستايل (القاعدة النهائية أسفل الملف).
+     صورة فتحة الباب تبقى صغيرة لأنها رمز توضيحي لا صورة منتج. */
   .open-img{ max-height:46px !important; }
 }
 
@@ -3527,7 +3528,6 @@ body.guest-mode .guest-hide{ display:none !important; }
   .col-style img{
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    max-height: 150px !important;      /* حجم معقول للطباعة يقلّل الفراغ */
     object-fit: contain !important;
   }
   /* رأس الجدول يتكرر أعلى كل صفحة */
@@ -3774,14 +3774,27 @@ body.guest-mode .guest-hide{ display:none !important; }
     padding: 5px 3px !important;
   }
 
-  /* الصور: ارتفاع موحّد معقول — كانت تتمدد فتُباعد الصفوف */
+  /* الصور تملأ عرض الخلية كاملاً — كان القيد السابق (108px) يُصغّرها
+     فتترك فراغاً أبيض واسعاً داخل المستطيل. */
+  .quotation-table td.col-style{
+    padding: 3px !important;
+    vertical-align: middle !important;
+  }
   .quotation-table td.col-style img,
-  .quotation-table td.col-open img,
   .style-img{
-    max-height: 108px !important;
-    height: auto !important;
-    width: auto !important;
+    width: 100% !important;
     max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    object-fit: cover !important;      /* تملأ المستطيل بلا تشويه */
+    display: block !important;
+    margin: 0 auto !important;
+    border-radius: 4px;
+  }
+  /* صورة فتحة الباب أصغر — رمز توضيحي لا صورة منتج */
+  .quotation-table td.col-open img{
+    max-height: 46px !important;
+    width: auto !important;
     object-fit: contain !important;
     display: block;
     margin: 0 auto;
@@ -4629,7 +4642,7 @@ body.guest-mode .guest-hide{ display:none !important; }
 // but it stops the password from being trivially visible via "View Source".
 // بصمة الإصدار — اطبع APP_VERSION في Console لمعرفة النسخة المنشورة بدقة.
 // تُحدَّث مع كل تسليم، وتظهر أيضاً في لوحة الأدمن.
-const APP_VERSION = "2026.09.20";
+const APP_VERSION = "2026.09.21";
 const APP_FEATURES = [
   "guest-readonly-pricelist",   // قائمة الأسعار للقراءة فقط للزائر
   "auth-cfg-hidden",            // إعدادات الاتصال مخفية عن الزوار
